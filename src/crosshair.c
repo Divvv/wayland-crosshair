@@ -2,11 +2,13 @@
 #include <gtk-layer-shell.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #define RADIUS 3.0
 
 static pid_t wlsunset_pid = -1;
+static const char *image_path = NULL;
 
 static void kill_wlsunset(void) {
     if (wlsunset_pid > 0)
@@ -29,9 +31,18 @@ static gboolean on_draw(GtkWidget *w, cairo_t *cr, gpointer _) {
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     cairo_set_source_rgba(cr, 0, 0, 0, 0);
     cairo_paint(cr);
-    cairo_set_source_rgb(cr, 0, 1, 0);
-    cairo_arc(cr, a.width / 2.0, a.height / 2.0, RADIUS, 0, 2 * G_PI);
-    cairo_fill(cr);
+    if (image_path) {
+        cairo_surface_t *img = cairo_image_surface_create_from_png(image_path);
+        double iw = cairo_image_surface_get_width(img);
+        double ih = cairo_image_surface_get_height(img);
+        cairo_set_source_surface(cr, img, (a.width - iw) / 2.0, (a.height - ih) / 2.0);
+        cairo_paint(cr);
+        cairo_surface_destroy(img);
+    } else {
+        cairo_set_source_rgb(cr, 0, 1, 0);
+        cairo_arc(cr, a.width / 2.0, a.height / 2.0, RADIUS, 0, 2 * G_PI);
+        cairo_fill(cr);
+    }
     return FALSE;
 }
 
@@ -68,7 +79,16 @@ static void activate(GtkApplication *app, gpointer _) {
 }
 
 int main(int argc, char **argv) {
-    const char *gamma = (argc >= 2) ? argv[1] : "1.2";
+    const char *gamma = "1.2";
+    for (int i = 1; i < argc; i++) {
+        if ((strcmp(argv[i], "--image") == 0 || strcmp(argv[i], "-i") == 0) && i + 1 < argc) {
+            image_path = argv[++i];
+        } else if ((strcmp(argv[i], "--gamma") == 0 || strcmp(argv[i], "-g") == 0) && i + 1 < argc) {
+            gamma = argv[++i];
+        } else {
+            gamma = argv[i];
+        }
+    }
     spawn_wlsunset(gamma);
 
     GtkApplication *app = gtk_application_new("se.n1k0.crosshair", G_APPLICATION_DEFAULT_FLAGS);
